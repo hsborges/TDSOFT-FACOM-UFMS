@@ -1,16 +1,16 @@
 import express from "express";
+import ServiceClient from "./ServiceClient.js";
 
 const app = express();
+const client = new ServiceClient();
 
 app.get("/pode-participar", async (req, res) => {
   // preciso fazer uma consulta ao serviço externo
   // se score > 13500, pode participar
   // se score < 13500, não pode participar
-  const data = await fetch(
-    `https://rate-limit.tdsoft.hsborges.dev/score?nome=${req.query.nome}`
-  ).then((response) => response.json());
+  const score = await client.consultaScore(req.query.nome);
 
-  if (data.score > 13500) {
+  if (score > 13500) {
     res.send("Pode participar");
   } else {
     res.send("Não pode participar");

@@ -11,5 +11,8 @@
   "devDependencies": {
     "express": "^4.19.2",
     "nodemon": "^3.1.0"
+  },
+  "dependencies": {
+    "p-queue": "^8.0.1"
   }
 }
