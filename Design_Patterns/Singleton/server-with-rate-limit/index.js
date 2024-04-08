@@ -1,39 +1,49 @@
+// Importing required modules
 import Express from "express";
 import rateLimit from "express-rate-limit";
 
+/**
+ * Function to generate a fictitious value based on the name
+ * @param {string} nome - The name for which to generate the fictitious value
+ * @returns {number} The generated fictitious value
+ */
 function gerarValorFicticio(nome) {
-  // Converter o nome para minúsculas
+  // Convert the name to lowercase
   var nomeMinusc = nome.toLowerCase();
 
-  // Calcular o valor fictício baseado em diferentes características do nome
+  // Calculate the fictitious value based on different characteristics of the name
   var valor = 0;
 
-  // Adicionar o valor da soma dos códigos ASCII dos caracteres
+  // Add the value of the sum of the ASCII codes of the characters
   for (var i = 0; i < nomeMinusc.length; i++) {
     valor += nomeMinusc.charCodeAt(i);
   }
 
-  // Adicionar o comprimento do nome
+  // Add the length of the name
   valor += nomeMinusc.length;
 
-  // Multiplicar pelo número de vogais no nome
+  // Multiply by the number of vowels in the name
   var vogais = nomeMinusc.match(/[aeiou]/g);
   if (vogais) {
     valor *= vogais.length;
   }
 
-  // Retornar o valor fictício
+  // Return the fictitious value
   return valor;
 }
 
+// Creating an Express application
 const app = Express();
 
+// Applying rate limiting middleware
 app.use(rateLimit({ windowMs: 500, max: 1 }));
 
+// Defining a route handler for the home route
 app.get("/", (req, res) => {
   res.send("I'm alive");
 });
 
+// Defining a route handler for the score route
 app.get("/score", (req, res) => {
   const { nome } = req.query;
 
@@ -46,6 +56,7 @@ app.get("/score", (req, res) => {
   });
 });
 
+// Starting the server
 app.listen(process.env.PORT || 3000, () => {
   console.log(`Server is running on port ${process.env.PORT || 3000}`);
 });
