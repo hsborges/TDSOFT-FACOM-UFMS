@@ -77,7 +77,7 @@ app.get("/api/score", (req, res) => {
   res.json({
     cpf: formattedValue,
     score: valor,
-    message: `O score de${formattedValue} é ${valor}`,
+    message: `O score de ${formattedValue} é ${valor}`,
   });
 });
 
