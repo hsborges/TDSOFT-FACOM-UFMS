@@ -1,62 +1,87 @@
 // Importing required modules
 import Express from "express";
 import rateLimit from "express-rate-limit";
+import { cpf as cpfValidator } from "cpf-cnpj-validator";
+import YAML from "yaml";
+import swaggerUi from "swagger-ui-express";
+import fs from "node:fs";
+import { z } from "zod";
+
+const env = z
+  .object({
+    PORT: z.coerce.number().int().default(3000),
+    BASE_URL: z.string().optional(),
+  })
+  .transform((value) => ({
+    ...value,
+    BASE_URL: value.BASE_URL || `http://localhost:${value.PORT}`,
+  }))
+  .parse(process.env);
 
 /**
- * Function to generate a fictitious value based on the name
- * @param {string} nome - The name for which to generate the fictitious value
- * @returns {number} The generated fictitious value
+ * Calcula um score fictício com base na soma ponderada dos dígitos do CPF.
  */
-function gerarValorFicticio(nome) {
-  // Convert the name to lowercase
-  var nomeMinusc = nome.toLowerCase();
+function calcularScore(cpf) {
+  // Remove caracteres não numéricos do CPF
+  cpf = cpf.replace(/\D/g, "");
 
-  // Calculate the fictitious value based on different characteristics of the name
-  var valor = 0;
+  // Converte o CPF em um array de números
+  let cpfArray = cpf.split("").map(Number);
 
-  // Add the value of the sum of the ASCII codes of the characters
-  for (var i = 0; i < nomeMinusc.length; i++) {
-    valor += nomeMinusc.charCodeAt(i);
+  // Calcula um score fictício com base na soma ponderada dos dígitos
+  let score = 0;
+  for (let i = 0; i < cpfArray.length; i++) {
+    score += cpfArray[i] * (i + 1);
   }
 
-  // Add the length of the name
-  valor += nomeMinusc.length;
+  // Gera um score final entre 0 e 1000
+  score = score % 1000;
 
-  // Multiply by the number of vowels in the name
-  var vogais = nomeMinusc.match(/[aeiou]/g);
-  if (vogais) {
-    valor *= vogais.length;
-  }
-
-  // Return the fictitious value
-  return valor;
+  return score;
 }
 
-// Creating an Express application
+//
 const app = Express();
 
-// Applying rate limiting middleware
-app.use(rateLimit({ windowMs: 500, max: 1 }));
+// Serve swagger
+const file = fs.readFileSync("./swagger.yaml", "utf8");
+const swaggerDocument = YAML.parse(file);
+app.use(
+  "/docs",
+  swaggerUi.serve,
+  swaggerUi.setup({
+    ...swaggerDocument,
+    servers: [{ url: `${env.BASE_URL}/api` }],
+  })
+);
 
 // Defining a route handler for the home route
 app.get("/", (req, res) => {
   res.send("I'm alive");
 });
 
+// Applying rate limiting middleware
+app.use("/api", rateLimit({ windowMs: 1000, max: 1 }));
+
 // Defining a route handler for the score route
-app.get("/score", (req, res) => {
-  const { nome } = req.query;
+app.get("/api/score", (req, res) => {
+  const { cpf } = req.query;
 
-  if (!nome) return res.status(400).json({ message: "Nome é obrigatório" });
+  if (!cpf) return res.status(400).json({ message: "CPF é obrigatório" });
+  else if (!cpfValidator.isValid(cpf))
+    return res.status(400).json({ message: "CPF inválido" });
 
-  const valor = gerarValorFicticio(nome);
+  const formattedValue = cpfValidator.format(cpf);
+  const valor = calcularScore(formattedValue);
+
   res.json({
+    cpf: formattedValue,
     score: valor,
-    message: `O valor fictício para ${nome} é ${valor}`,
+    message: `O score de${formattedValue} é ${valor}`,
   });
 });
 
 // Starting the server
-app.listen(process.env.PORT || 3000, () => {
-  console.log(`Server is running on port ${process.env.PORT || 3000}`);
+app.listen(env.PORT, () => {
+  console.log(`Server is running on port ${env.PORT}`);
 });

@@ -1,0 +1,49 @@
+openapi: 3.0.0
+info:
+  title: Score API
+  description: API para calcular e retornar um score fictício com base em um CPF fornecido.
+  version: 0.9.0
+
+paths:
+  /score:
+    get:
+      summary: Calcula e retorna o score fictício com base no CPF
+      parameters:
+        - in: query
+          name: cpf
+          required: true
+          schema:
+            type: string
+          description: CPF
+      responses:
+        200:
+          description: Retorna o score calculado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cpf:
+                    type: string
+                    description: CPF utilizado no cálculo
+                    example: "123.456.789-09"
+                  score:
+                    type: integer
+                    description: Score calculado baseado no CPF
+                    example: 450
+                  message:
+                    type: string
+                    description: Uma mensagem complementar
+        400:
+          description: CPF inválido ou não fornecido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Mensagem de erro
+                    example: "CPF inválido ou não fornecido"
+        429:
+          description: Usuário excedeu o número de requisições

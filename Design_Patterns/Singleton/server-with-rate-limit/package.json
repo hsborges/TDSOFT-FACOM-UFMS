@@ -9,8 +9,12 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "cpf-cnpj-validator": "^1.0.3",
     "express": "^4.19.2",
-    "express-rate-limit": "^7.2.0"
+    "express-rate-limit": "^7.2.0",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.5.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "autocannon": "^7.15.0",
