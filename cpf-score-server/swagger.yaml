@@ -51,14 +51,7 @@ paths:
                     type: string
                     description: Mensagem de erro
                     example: "CPF inválido ou não fornecido"
+        401:
+          description: Client ID não informado ou inválido
         429:
           description: Usuário excedeu o número de requisições (Rate limit exceeded)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Mensagem de erro de rate limiting
-                    example: "Rate limit exceeded. Please try again later."
