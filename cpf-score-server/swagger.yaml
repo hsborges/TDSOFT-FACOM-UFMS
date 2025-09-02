@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Score API
   description: API para calcular e retornar um score fictício com base em um CPF fornecido.
-  version: 0.9.0
+  version: 0.9.1
 
 paths:
   /score:
@@ -52,4 +52,13 @@ paths:
                     description: Mensagem de erro
                     example: "CPF inválido ou não fornecido"
         429:
-          description: Usuário excedeu o número de requisições
+          description: Usuário excedeu o número de requisições (Rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Mensagem de erro de rate limiting
+                    example: "Rate limit exceeded. Please try again later."

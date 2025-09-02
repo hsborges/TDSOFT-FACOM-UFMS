@@ -38,7 +38,9 @@ const rateLimiterMiddleware = (req, res, next) => {
         return oldSend(body);
       };
 
-      res.status(429).send("Too Many Requests");
+      res.status(429).send({
+        error: `Aguarde ${rateLimiterRes.msBeforeNext}ms`,
+      });
     });
 };
 
