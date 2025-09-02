@@ -9,6 +9,12 @@ paths:
     get:
       summary: Calcula e retorna o score fictício com base no CPF
       parameters:
+        - in: header
+          name: client-id
+          required: true
+          schema:
+            type: string
+          description: Client ID
         - in: query
           name: cpf
           required: true

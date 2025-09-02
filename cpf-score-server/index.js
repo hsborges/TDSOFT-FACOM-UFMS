@@ -1,6 +1,7 @@
 // Importing required modules
 import Express from "express";
-import rateLimit from "express-rate-limit";
+import rateLimiter from "./middlewares/rateLimiter.js";
+import clientIdentificator from "./middlewares/clientIdentificator.js";
 import { cpf as cpfValidator } from "cpf-cnpj-validator";
 import YAML from "yaml";
 import swaggerUi from "swagger-ui-express";
@@ -60,11 +61,8 @@ app.get("/", (req, res) => {
   res.send("I'm alive");
 });
 
-// Applying rate limiting middleware
-app.use("/api", rateLimit({ windowMs: 1000, max: 1 }));
-
 // Defining a route handler for the score route
-app.get("/api/score", (req, res) => {
+app.get("/api/score", clientIdentificator, rateLimiter, (req, res) => {
   const { cpf } = req.query;
 
   if (!cpf) return res.status(400).json({ message: "CPF é obrigatório" });
