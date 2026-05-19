@@ -1,0 +1,1809 @@
+openapi: 3.0.3
+info:
+  title: FACOFFE Services API
+  version: 1.1.0
+  description: |
+    Contrato OpenAPI para a aplicação FACOFFE, destinada ao gerenciamento coletivo
+    da copa dos servidores do departamento.
+
+    A copa possui uma máquina de café expresso mantida pelos próprios interessados.
+    Os gastos com café, chás, bolachas, materiais de consumo e manutenção são
+    rateados entre participantes. Gestores cadastram cotas de participação com
+    condições, itens cobertos e valores. Participantes podem aderir a uma cota,
+    desde que não estejam vinculados a outra cota ativa.
+
+    Mensalmente, participações ativas geram eventos para o Serviço Financeiro,
+    que cria pendências de pagamento. Usuários podem comprovar pagamentos, e
+    gestores podem validar ou rejeitar os comprovantes.
+
+servers:
+  - url: https://api.facoffe.hsborges.dev/api
+    description: API Gateway público
+  - url: http://localhost:8080/api
+    description: Ambiente local de desenvolvimento
+
+tags:
+  - name: Users
+    description: |
+      Gerenciamento de usuários, papéis e status de conta.
+      Regras: gestores acessam dados de todos os usuários; participantes acessam e alteram apenas os próprios dados.
+  - name: Participation
+    description: Gerenciamento de cotas e adesões de participação.
+  - name: Finance
+    description: Gerenciamento de pendências financeiras, despesas, comprovantes e validações.
+  - name: Events
+    description: Eventos de domínio documentados como extensão OpenAPI.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /users:
+    post:
+      tags: [Users]
+      summary: Criar usuário
+      description: Cria um usuário de domínio. A criação da credencial pode ser delegada ao serviço de Auth & IAM.
+      operationId: createUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            examples:
+              usuario:
+                value:
+                  name: Maria Silva
+                  email: maria.silva@departamento.edu.br
+                  roles: [PARTICIPANT]
+      responses:
+        '201':
+          description: Usuário criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Users]
+      summary: Listar usuários
+      description: Operação restrita a gestores.
+      operationId: listUsers
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+        - name: role
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Lista paginada de usuários.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{userId}:
+    get:
+      tags: [Users]
+      summary: Obter usuário por identificador
+      description: Gestores podem consultar qualquer usuário; participantes podem consultar apenas o próprio usuário.
+      operationId: getUserById
+      x-authorization:
+        scope: ACCESS_RULE
+        allow: [MANAGER_OR_SELF]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Usuário encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Users]
+      summary: Atualizar dados básicos do usuário
+      description: Gestores podem alterar qualquer usuário; participantes podem alterar apenas os próprios dados.
+      operationId: updateUser
+      x-authorization:
+        scope: ACCESS_RULE
+        allow: [MANAGER_OR_SELF]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Usuário atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/deactivate:
+    post:
+      tags: [Users]
+      summary: Desativar usuário
+      description: Desativa a conta de um usuário e publica o evento UserDeactivated. Gestores podem desativar qualquer usuário; participantes apenas a própria conta.
+      operationId: deactivateUser
+      x-authorization:
+        scope: ACCESS_RULE
+        allow: [MANAGER_OR_SELF]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeactivateUserRequest'
+            examples:
+              motivo:
+                value:
+                  reason: Usuário não participa mais da copa
+      responses:
+        '200':
+          description: Usuário desativado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/roles:
+    put:
+      tags: [Users]
+      summary: Substituir papéis do usuário
+      description: Operação restrita a gestores ou administradores.
+      operationId: replaceUserRoles
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceUserRolesRequest'
+      responses:
+        '200':
+          description: Papéis atualizados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /participation/quotas:
+    post:
+      tags: [Participation]
+      summary: Cadastrar cota de participação
+      description: |
+        Permite que gestores cadastrem uma cota de participação. O cálculo do valor
+        é responsabilidade do gestor; o serviço apenas registra o valor informado.
+      operationId: createParticipationQuota
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateParticipationQuotaRequest'
+            examples:
+              diariaCompleta:
+                value:
+                  name: Cota diária completa
+                  description: Participante diário com acesso a café e bolachas.
+                  condition: DAILY
+                  items: ALL
+                  amount: 40.00
+                  active: true
+              esporadicaCafe:
+                value:
+                  name: Cota esporádica - café
+                  description: Participante esporádico que consome apenas café.
+                  condition: SPORADIC
+                  items: COFFEE
+                  amount: 15.00
+                  active: true
+      responses:
+        '201':
+          description: Cota cadastrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationQuota'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Participation]
+      summary: Listar cotas de participação
+      operationId: listParticipationQuotas
+      parameters:
+        - name: active
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: condition
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/QuotaCondition'
+        - name: items
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/QuotaItems'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Lista paginada de cotas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationQuotaPage'
+
+  /participation/quotas/{quotaId}:
+    get:
+      tags: [Participation]
+      summary: Obter cota de participação por identificador
+      operationId: getParticipationQuotaById
+      parameters:
+        - $ref: '#/components/parameters/QuotaId'
+      responses:
+        '200':
+          description: Cota encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationQuota'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Participation]
+      summary: Atualizar cota de participação
+      description: |
+        Permite que gestores alterem descrição, condição, itens, valor ou situação da cota.
+        Mudanças podem valer apenas para novas adesões ou para ciclos futuros, conforme regra de negócio.
+      operationId: updateParticipationQuota
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/QuotaId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateParticipationQuotaRequest'
+      responses:
+        '200':
+          description: Cota atualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationQuota'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Participation]
+      summary: Desativar cota de participação (soft delete)
+      description: |
+        Realiza remoção lógica da cota, alterando seu status para INACTIVE.
+        A operação deve falhar caso exista ao menos uma participação ativa vinculada à cota.
+      operationId: deactivateParticipationQuota
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/QuotaId'
+      responses:
+        '200':
+          description: Cota desativada com sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationQuota'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Não é possível desativar cota com participações ativas vinculadas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /participation/participations:
+    post:
+      tags: [Participation]
+      summary: Aderir a uma cota de participação
+      description: |
+        Permite que um participante escolha uma cota ativa. A operação deve falhar
+        caso o usuário já possua participação ativa em outra cota.
+      operationId: joinParticipationQuota
+      x-authorization:
+        scope: ROLE
+        allow: [PARTICIPANT]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinParticipationQuotaRequest'
+            examples:
+              adesao:
+                value:
+                  userId: usr_123
+                  quotaId: quota_001
+                  startCycle: '2026-05'
+      responses:
+        '201':
+          description: Participação criada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Usuário já possui participação ativa em outra cota.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Participation]
+      summary: Listar participações
+      operationId: listParticipations
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: quotaId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ParticipationStatus'
+        - name: cycle
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\\d{4}-\\d{2}$'
+            example: '2026-05'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Lista paginada de participações.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipationPage'
+
+  /participation/participations/{participationId}:
+    get:
+      tags: [Participation]
+      summary: Obter participação por identificador
+      operationId: getParticipationById
+      parameters:
+        - $ref: '#/components/parameters/ParticipationId'
+      responses:
+        '200':
+          description: Participação encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Participation]
+      summary: Cancelar participação
+      description: |
+        Realiza remoção lógica (cancelamento) de uma participação ativa.
+        Pode ser acionado pelo próprio participante, por um gestor ou como reação ao evento UserDeactivated.
+      operationId: cancelParticipation
+      x-authorization:
+        scope: ACCESS_RULE
+        allow: [MANAGER_OR_SELF]
+      parameters:
+        - $ref: '#/components/parameters/ParticipationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelParticipationRequest'
+            examples:
+              cancelamento:
+                value:
+                  requestedBy: usr_123
+                  reason: Participante deixou de usar a copa
+                  effectiveCycle: '2026-06'
+      responses:
+        '200':
+          description: Participação cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+
+  /finance/pendencies:
+    get:
+      tags: [Finance]
+      summary: Listar pendências financeiras
+      operationId: listPendencies
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: cycle
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\\d{4}-\\d{2}$'
+            example: '2026-05'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PendencyStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Lista paginada de pendências financeiras.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendencyPage'
+
+  /finance/pendencies/{pendencyId}:
+    get:
+      tags: [Finance]
+      summary: Obter pendência financeira por identificador
+      operationId: getPendencyById
+      parameters:
+        - $ref: '#/components/parameters/PendencyId'
+      responses:
+        '200':
+          description: Pendência encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pendency'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /finance/pendencies/{pendencyId}/proofs:
+    post:
+      tags: [Finance]
+      summary: Enviar comprovante de pagamento
+      description: Permite que o usuário comprove o pagamento de uma pendência financeira.
+      operationId: submitPaymentProof
+      x-authorization:
+        scope: ROLE
+        allow: [PARTICIPANT]
+      parameters:
+        - $ref: '#/components/parameters/PendencyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitPaymentProofRequest'
+            examples:
+              comprovante:
+                value:
+                  submittedBy: usr_123
+                  amount: 40.00
+                  paymentDate: '2026-05-10'
+                  method: PIX
+                  receiptUrl: https://storage.example.com/receipts/abc123.pdf
+                  note: Pagamento referente à cota diária completa de maio.
+      responses:
+        '201':
+          description: Comprovante registrado e pendência aguardando validação.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentProof'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A pendência não permite novo comprovante no estado atual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-05-19T13:00:00Z'
+                status: 409
+                error: Conflict
+                message: A pendência não permite novo comprovante no estado atual.
+                path: /api/finance/pendencies/pend_001/proofs
+    get:
+      tags: [Finance]
+      summary: Listar comprovantes de uma pendência
+      operationId: listPendencyPaymentProofs
+      parameters:
+        - $ref: '#/components/parameters/PendencyId'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PaymentProofStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Lista paginada de comprovantes da pendência.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendencyPaymentProofPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /finance/pendencies/{pendencyId}/proofs/{proofId}:
+    patch:
+      tags: [Finance]
+      summary: Decidir comprovante de pagamento
+      description: |
+        Operação realizada por gestores para validar ou rejeitar um comprovante.
+        Ao validar, a pendência é marcada como paga; ao rejeitar, retorna para estado de cobrança.
+      operationId: decidePaymentProof
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/PendencyId'
+        - $ref: '#/components/parameters/ProofId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentProofDecisionRequest'
+            examples:
+              validar:
+                value:
+                  status: VALIDATED
+                  decidedBy: usr_manager_001
+                  note: Comprovante conferido na conta da copa.
+              rejeitar:
+                value:
+                  status: REJECTED
+                  decidedBy: usr_manager_001
+                  reason: Valor informado não corresponde à pendência.
+      responses:
+        '200':
+          description: Comprovante atualizado com a decisão.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentProof'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: O comprovante não pode ser decidido no estado atual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-05-19T13:00:00Z'
+                status: 409
+                error: Conflict
+                message: O comprovante não pode ser decidido no estado atual.
+                path: /api/finance/pendencies/pend_001/proofs/proof_001
+    delete:
+      tags: [Finance]
+      summary: Remover comprovante de pagamento
+      description: |
+        Remove um comprovante de pagamento.
+        A operação deve falhar caso o comprovante já tenha sido analisado
+        (status diferente de WAITING_VALIDATION).
+      operationId: deletePaymentProof
+      x-authorization:
+        scope: ACCESS_RULE
+        allow: [MANAGER_OR_PROOF_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/PendencyId'
+        - $ref: '#/components/parameters/ProofId'
+      responses:
+        '204':
+          description: Comprovante removido com sucesso.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Não é possível remover comprovante que já foi analisado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2026-05-19T13:00:00Z'
+                status: 409
+                error: Conflict
+                message: Nao e possivel remover comprovante que ja foi analisado.
+                path: /api/finance/pendencies/pend_001/proofs/proof_001
+
+  /finance/expenses:
+    post:
+      tags: [Finance]
+      summary: Cadastrar despesa
+      description: Permite que gestores cadastrem despesas da copa.
+      operationId: createExpense
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExpenseRequest'
+            examples:
+              despesa:
+                value:
+                  description: Compra de café em grãos
+                  category: COFFEE
+                  amount: 85.90
+                  expenseDate: '2026-05-08'
+                  registeredBy: usr_manager_001
+                  receiptUrl: https://storage.example.com/expenses/coffee-receipt.pdf
+      responses:
+        '201':
+          description: Despesa cadastrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+    get:
+      tags: [Finance]
+      summary: Listar despesas
+      operationId: listExpenses
+      parameters:
+        - name: cycle
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^\\d{4}-\\d{2}$'
+            example: '2026-05'
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ExpenseCategory'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Lista paginada de despesas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpensePage'
+
+  /finance/expenses/{expenseId}:
+    get:
+      tags: [Finance]
+      summary: Obter despesa por identificador
+      operationId: getExpenseById
+      parameters:
+        - $ref: '#/components/parameters/ExpenseId'
+      responses:
+        '200':
+          description: Despesa encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Finance]
+      summary: Remover despesa
+      description: Remove uma despesa cadastrada.
+      operationId: deleteExpense
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/ExpenseId'
+      responses:
+        '204':
+          description: Despesa removida com sucesso.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /finance/statement:
+    get:
+      tags: [Finance]
+      summary: Consultar extrato de entradas e saídas
+      description: |
+        Retorna o extrato financeiro para o período informado, incluindo
+        entradas, saídas e saldo geral consolidado.
+      operationId: getFinanceStatement
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-05-01'
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-05-31'
+      responses:
+        '200':
+          description: Extrato financeiro do período.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceStatement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /finance/balance:
+    get:
+      tags: [Finance]
+      summary: Consultar balanço consolidado histórico
+      description: |
+        Retorna o balanço consolidado de toda a história financeira,
+        considerando todas as entradas e saídas registradas até o momento.
+      operationId: getFinanceBalance
+      x-authorization:
+        scope: ROLE
+        allow: [MANAGER]
+      responses:
+        '200':
+          description: Balanço consolidado histórico.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinanceBalance'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: usr_123
+    QuotaId:
+      name: quotaId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: quota_001
+    ParticipationId:
+      name: participationId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: part_001
+    PendencyId:
+      name: pendencyId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: pend_001
+    ProofId:
+      name: proofId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: proof_001
+    ExpenseId:
+      name: expenseId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: exp_001
+
+  responses:
+    BadRequest:
+      description: Requisição inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso não encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflito com o estado atual do recurso.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Token ausente, inválido ou expirado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Usuário autenticado não possui permissão para a operação.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: '2026-05-19T13:00:00Z'
+            status: 403
+            error: Forbidden
+            message: Usuário autenticado não possui permissão para acessar este recurso.
+            path: /api/users/usr_999
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [timestamp, status, error, message, path]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-05-19T13:00:00Z'
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Campo obrigatório ausente.
+        path:
+          type: string
+          example: /api/participation/quotas
+
+    PageMetadata:
+      type: object
+      required: [page, size, totalElements, totalPages]
+      properties:
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 42
+        totalPages:
+          type: integer
+          example: 3
+
+    UserRole:
+      type: string
+      enum: [MANAGER, PARTICIPANT]
+
+    UserStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    CreateUserRequest:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          example: Maria Silva
+        email:
+          type: string
+          format: email
+          example: maria.silva@departamento.edu.br
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+          default: [PARTICIPANT]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+
+    DeactivateUserRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          example: Usuário não participa mais da copa
+
+    ReplaceUserRolesRequest:
+      type: object
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/UserRole'
+
+    User:
+      type: object
+      required: [id, name, email, status, roles, createdAt]
+      properties:
+        id:
+          type: string
+          example: usr_123
+        name:
+          type: string
+          example: Maria Silva
+        email:
+          type: string
+          format: email
+          example: maria.silva@departamento.edu.br
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserRole'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-19T13:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    UserPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    QuotaCondition:
+      type: string
+      enum: [DAILY, SPORADIC]
+      description: Condição de uso prevista para a cota.
+
+    QuotaItems:
+      type: string
+      enum: [ALL, COFFEE, COOKIES]
+      description: Itens cobertos pela cota.
+
+    ParticipationQuotaStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    CreateParticipationQuotaRequest:
+      type: object
+      required: [name, condition, items, amount]
+      properties:
+        name:
+          type: string
+          example: Cota diária completa
+        description:
+          type: string
+          example: Participante diário com acesso a café e bolachas.
+        condition:
+          $ref: '#/components/schemas/QuotaCondition'
+        items:
+          $ref: '#/components/schemas/QuotaItems'
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 40.00
+          description: Valor definido pelo gestor. O serviço não calcula este valor automaticamente.
+        active:
+          type: boolean
+          default: true
+
+    UpdateParticipationQuotaRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        condition:
+          $ref: '#/components/schemas/QuotaCondition'
+        items:
+          $ref: '#/components/schemas/QuotaItems'
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        active:
+          type: boolean
+
+    ParticipationQuota:
+      type: object
+      required: [id, name, condition, items, amount, status, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+          example: quota_001
+        name:
+          type: string
+          example: Cota diária completa
+        description:
+          type: string
+          example: Participante diário com acesso a café e bolachas.
+        condition:
+          $ref: '#/components/schemas/QuotaCondition'
+        items:
+          $ref: '#/components/schemas/QuotaItems'
+        amount:
+          type: number
+          format: double
+          example: 40.00
+        status:
+          $ref: '#/components/schemas/ParticipationQuotaStatus'
+        createdBy:
+          type: string
+          example: usr_manager_001
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-01T08:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ParticipationQuotaPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParticipationQuota'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    ParticipationStatus:
+      type: string
+      enum: [ACTIVE, CANCELLED]
+
+    JoinParticipationQuotaRequest:
+      type: object
+      required: [userId, quotaId, startCycle]
+      properties:
+        userId:
+          type: string
+          example: usr_123
+        quotaId:
+          type: string
+          example: quota_001
+        startCycle:
+          type: string
+          pattern: '^\\d{4}-\\d{2}$'
+          example: '2026-05'
+
+    CancelParticipationRequest:
+      type: object
+      required: [requestedBy, reason, effectiveCycle]
+      properties:
+        requestedBy:
+          type: string
+          example: usr_123
+        reason:
+          type: string
+          example: Participante deixou de usar a copa.
+        effectiveCycle:
+          type: string
+          pattern: '^\\d{4}-\\d{2}$'
+          example: '2026-06'
+
+    Participation:
+      type: object
+      required: [id, userId, quotaId, status, startCycle, quotaSnapshot, createdAt]
+      properties:
+        id:
+          type: string
+          example: part_001
+        userId:
+          type: string
+          example: usr_123
+        quotaId:
+          type: string
+          example: quota_001
+        status:
+          $ref: '#/components/schemas/ParticipationStatus'
+        startCycle:
+          type: string
+          pattern: '^\\d{4}-\\d{2}$'
+          example: '2026-05'
+        endCycle:
+          type: string
+          pattern: '^\\d{4}-\\d{2}$'
+          nullable: true
+        quotaSnapshot:
+          $ref: '#/components/schemas/QuotaSnapshot'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-02T10:00:00Z'
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    QuotaSnapshot:
+      type: object
+      description: Cópia dos dados da cota no momento da adesão ou da geração mensal.
+      required: [quotaId, name, condition, items, amount]
+      properties:
+        quotaId:
+          type: string
+          example: quota_001
+        name:
+          type: string
+          example: Cota diária completa
+        condition:
+          $ref: '#/components/schemas/QuotaCondition'
+        items:
+          $ref: '#/components/schemas/QuotaItems'
+        amount:
+          type: number
+          format: double
+          example: 40.00
+
+    ParticipationPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participation'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    PendencyStatus:
+      type: string
+      enum: [PENDING, WAITING_VALIDATION, PAID, REJECTED, CANCELLED]
+
+    PendencySource:
+      type: string
+      enum: [MONTHLY_PARTICIPATION]
+
+    Pendency:
+      type: object
+      required: [id, source, sourceId, userId, cycle, amount, status, description, createdAt]
+      properties:
+        id:
+          type: string
+          example: pend_001
+        source:
+          $ref: '#/components/schemas/PendencySource'
+        sourceId:
+          type: string
+          description: Identificador do registro de origem que gerou a pendência.
+          example: mpart_001
+        userId:
+          type: string
+          example: usr_123
+        cycle:
+          type: string
+          pattern: '^\\d{4}-\\d{2}$'
+          example: '2026-05'
+        amount:
+          type: number
+          format: double
+          example: 40.00
+        status:
+          $ref: '#/components/schemas/PendencyStatus'
+        description:
+          type: string
+          example: Cota diária completa - Maio/2026
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-01T08:10:00Z'
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    PendencyPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pendency'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    PaymentMethod:
+      type: string
+      enum: [PIX, CASH, BANK_TRANSFER, OTHER]
+
+    PaymentProofStatus:
+      type: string
+      enum: [WAITING_VALIDATION, VALIDATED, REJECTED]
+
+    SubmitPaymentProofRequest:
+      type: object
+      required: [submittedBy, amount, paymentDate, method, receiptUrl]
+      properties:
+        submittedBy:
+          type: string
+          example: usr_123
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 40.00
+        paymentDate:
+          type: string
+          format: date
+          example: '2026-05-10'
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        receiptUrl:
+          type: string
+          format: uri
+          example: https://storage.example.com/receipts/abc123.pdf
+        note:
+          type: string
+          example: Pagamento referente à cota diária completa de maio.
+
+    PaymentProofDecisionStatus:
+      type: string
+      enum: [VALIDATED, REJECTED]
+
+    PaymentProofDecisionRequest:
+      type: object
+      required: [status, decidedBy]
+      properties:
+        status:
+          $ref: '#/components/schemas/PaymentProofDecisionStatus'
+        decidedBy:
+          type: string
+          example: usr_manager_001
+        note:
+          type: string
+          example: Comprovante conferido na conta da copa.
+        reason:
+          type: string
+          description: Obrigatório quando status for REJECTED.
+          example: Valor informado não corresponde à pendência.
+
+    PaymentProof:
+      type: object
+      required: [id, pendencyId, userId, amount, paymentDate, method, receiptUrl, status, submittedAt]
+      properties:
+        id:
+          type: string
+          example: proof_001
+        pendencyId:
+          type: string
+          example: pend_001
+        userId:
+          type: string
+          example: usr_123
+        amount:
+          type: number
+          format: double
+          example: 40.00
+        paymentDate:
+          type: string
+          format: date
+          example: '2026-05-10'
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        receiptUrl:
+          type: string
+          format: uri
+          example: https://storage.example.com/receipts/abc123.pdf
+        status:
+          $ref: '#/components/schemas/PaymentProofStatus'
+        note:
+          type: string
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+          example: '2026-05-10T12:00:00Z'
+        validatedBy:
+          type: string
+          nullable: true
+        validatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectedBy:
+          type: string
+          nullable: true
+        rejectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+
+    PendencyPaymentProofPage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentProof'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    ExpenseCategory:
+      type: string
+      enum:
+        - COFFEE
+        - TEA
+        - COOKIES
+        - SUGAR
+        - CUPS
+        - MACHINE_MAINTENANCE
+        - CLEANING_SUPPLIES
+        - OTHER
+
+    ExpenseStatus:
+      type: string
+      enum: [REGISTERED, CANCELLED]
+
+    CreateExpenseRequest:
+      type: object
+      required: [description, category, amount, expenseDate, registeredBy]
+      properties:
+        description:
+          type: string
+          example: Compra de café em grãos
+        category:
+          $ref: '#/components/schemas/ExpenseCategory'
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 85.90
+        expenseDate:
+          type: string
+          format: date
+          example: '2026-05-08'
+        registeredBy:
+          type: string
+          example: usr_manager_001
+        receiptUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://storage.example.com/expenses/coffee-receipt.pdf
+
+    Expense:
+      type: object
+      required: [id, description, category, amount, expenseDate, status, registeredBy, createdAt]
+      properties:
+        id:
+          type: string
+          example: exp_001
+        description:
+          type: string
+          example: Compra de café em grãos
+        category:
+          $ref: '#/components/schemas/ExpenseCategory'
+        amount:
+          type: number
+          format: double
+          example: 85.90
+        expenseDate:
+          type: string
+          format: date
+          example: '2026-05-08'
+        cycle:
+          type: string
+          pattern: '^\\d{4}-\\d{2}$'
+          example: '2026-05'
+        status:
+          $ref: '#/components/schemas/ExpenseStatus'
+        registeredBy:
+          type: string
+          example: usr_manager_001
+        receiptUrl:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-08T15:00:00Z'
+
+    ExpensePage:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Expense'
+        page:
+          $ref: '#/components/schemas/PageMetadata'
+
+    StatementEntryType:
+      type: string
+      enum: [INCOME, EXPENSE]
+
+    StatementEntry:
+      type: object
+      required: [id, type, description, amount, occurredAt]
+      properties:
+        id:
+          type: string
+          example: proof_001
+        type:
+          $ref: '#/components/schemas/StatementEntryType'
+        description:
+          type: string
+          example: Pagamento validado da cota diaria completa
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 40.00
+        occurredAt:
+          type: string
+          format: date-time
+          example: '2026-05-11T09:00:00Z'
+        referenceType:
+          type: string
+          example: PAYMENT_PROOF
+        referenceId:
+          type: string
+          example: proof_001
+
+    FinanceStatement:
+      type: object
+      required: [period, totalIncome, totalExpense, balance, entries]
+      properties:
+        period:
+          type: object
+          required: [startDate, endDate]
+          properties:
+            startDate:
+              type: string
+              format: date
+              example: '2026-05-01'
+            endDate:
+              type: string
+              format: date
+              example: '2026-05-31'
+        totalIncome:
+          type: number
+          format: double
+          example: 520.00
+        totalExpense:
+          type: number
+          format: double
+          example: 185.90
+        balance:
+          type: number
+          format: double
+          example: 334.10
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatementEntry'
+
+    FinanceBalance:
+      type: object
+      required: [totalIncome, totalExpense, balance, updatedAt]
+      properties:
+        totalIncome:
+          type: number
+          format: double
+          example: 12450.00
+        totalExpense:
+          type: number
+          format: double
+          example: 9780.40
+        balance:
+          type: number
+          format: double
+          example: 2669.60
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-05-19T18:00:00Z'
+
+x-domain-events:
+  publishedByUsersService:
+    - eventType: UserDeactivated
+      version: '1.0'
+      exchange: facoffe.users.events
+      routingKey: users.deactivated
+      consumers:
+        - Participation Service
+      payloadExample:
+        eventId: evt_001
+        eventType: UserDeactivated
+        occurredAt: '2026-05-19T13:00:00Z'
+        version: '1.0'
+        payload:
+          userId: usr_123
+          reason: Usuário não participa mais da copa
+
+  publishedByParticipationService:
+    - eventType: ParticipationQuotaCreated
+      version: '1.0'
+      exchange: facoffe.participation.events
+      routingKey: quota.created
+      consumers:
+        - Reporting Service
+      payloadExample:
+        eventId: evt_010
+        eventType: ParticipationQuotaCreated
+        occurredAt: '2026-05-01T08:00:00Z'
+        version: '1.0'
+        payload:
+          quotaId: quota_001
+          name: Cota diária completa
+          condition: DAILY
+          items: ALL
+          amount: 40.00
+          createdBy: usr_manager_001
+    - eventType: ParticipationJoined
+      version: '1.0'
+      exchange: facoffe.participation.events
+      routingKey: participation.joined
+      consumers:
+        - Reporting Service
+      payloadExample:
+        eventId: evt_011
+        eventType: ParticipationJoined
+        occurredAt: '2026-05-02T10:00:00Z'
+        version: '1.0'
+        payload:
+          participationId: part_001
+          userId: usr_123
+          quotaId: quota_001
+          startCycle: '2026-05'
+          quotaSnapshot:
+            quotaId: quota_001
+            name: Cota diária completa
+            condition: DAILY
+            items: ALL
+            amount: 40.00
+    - eventType: MonthlyParticipationGenerated
+      version: '1.0'
+      exchange: facoffe.participation.events
+      routingKey: monthly-participation.generated
+      consumers:
+        - Finance Service
+      payloadExample:
+        eventId: evt_012
+        eventType: MonthlyParticipationGenerated
+        occurredAt: '2026-05-01T08:00:00Z'
+        version: '1.0'
+        payload:
+          monthlyParticipationId: mpart_001
+          participationId: part_001
+          userId: usr_123
+          quotaId: quota_001
+          cycle: '2026-05'
+          amount: 40.00
+          description: Cota diária completa - Maio/2026
+          quotaSnapshot:
+            quotaId: quota_001
+            name: Cota diária completa
+            condition: DAILY
+            items: ALL
+            amount: 40.00
+    - eventType: ParticipationCancelled
+      version: '1.0'
+      exchange: facoffe.participation.events
+      routingKey: participation.cancelled
+      consumers:
+        - Finance Service
+      payloadExample:
+        eventId: evt_013
+        eventType: ParticipationCancelled
+        occurredAt: '2026-05-19T13:30:00Z'
+        version: '1.0'
+        payload:
+          participationId: part_001
+          userId: usr_123
+          quotaId: quota_001
+          effectiveCycle: '2026-06'
+          reason: Participante deixou de usar a copa
+
+  publishedByFinanceService:
+    - eventType: FinancialPendencyCreated
+      version: '1.0'
+      exchange: facoffe.finance.events
+      routingKey: financial-pendency.created
+      consumers:
+        - Notification Service
+        - Reporting Service
+      payloadExample:
+        eventId: evt_020
+        eventType: FinancialPendencyCreated
+        occurredAt: '2026-05-01T08:10:00Z'
+        version: '1.0'
+        payload:
+          pendencyId: pend_001
+          source: MONTHLY_PARTICIPATION
+          sourceId: mpart_001
+          userId: usr_123
+          cycle: '2026-05'
+          amount: 40.00
+          status: PENDING
+    - eventType: PaymentProofSubmitted
+      version: '1.0'
+      exchange: facoffe.finance.events
+      routingKey: payment-proof.submitted
+      consumers:
+        - Notification Service
+        - Reporting Service
+      payloadExample:
+        eventId: evt_021
+        eventType: PaymentProofSubmitted
+        occurredAt: '2026-05-10T12:00:00Z'
+        version: '1.0'
+        payload:
+          proofId: proof_001
+          pendencyId: pend_001
+          userId: usr_123
+          amount: 40.00
+          status: WAITING_VALIDATION
+    - eventType: PaymentProofValidated
+      version: '1.0'
+      exchange: facoffe.finance.events
+      routingKey: payment-proof.validated
+      consumers:
+        - Notification Service
+        - Reporting Service
+      payloadExample:
+        eventId: evt_022
+        eventType: PaymentProofValidated
+        occurredAt: '2026-05-11T09:00:00Z'
+        version: '1.0'
+        payload:
+          proofId: proof_001
+          pendencyId: pend_001
+          userId: usr_123
+          amount: 40.00
+          pendencyStatus: PAID
+          validatedBy: usr_manager_001
+    - eventType: ExpenseCreated
+      version: '1.0'
+      exchange: facoffe.finance.events
+      routingKey: expense.created
+      consumers:
+        - Reporting Service
+      payloadExample:
+        eventId: evt_023
+        eventType: ExpenseCreated
+        occurredAt: '2026-05-08T15:00:00Z'
+        version: '1.0'
+        payload:
+          expenseId: exp_001
+          category: COFFEE
+          amount: 85.90
+          expenseDate: '2026-05-08'
+          registeredBy: usr_manager_001

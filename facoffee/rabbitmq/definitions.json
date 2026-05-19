@@ -1,0 +1,212 @@
+{
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "users": [
+    {
+      "name": "facoffee",
+      "password": "facoffee",
+      "tags": "administrator"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "facoffee",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "domain.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "domain.retry",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "domain.dlx",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "participation.user-deactivated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "domain.dlx",
+        "x-dead-letter-routing-key": "users.deactivated"
+      }
+    },
+    {
+      "name": "notification.finance-pendency-created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "domain.dlx",
+        "x-dead-letter-routing-key": "finance.pendency-created"
+      }
+    },
+    {
+      "name": "reporting.finance-pendency-created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "domain.dlx",
+        "x-dead-letter-routing-key": "finance.pendency-created"
+      }
+    },
+    {
+      "name": "participation.user-deactivated.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 10000,
+        "x-dead-letter-exchange": "domain.events",
+        "x-dead-letter-routing-key": "users.deactivated"
+      }
+    },
+    {
+      "name": "notification.finance-pendency-created.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 10000,
+        "x-dead-letter-exchange": "domain.events",
+        "x-dead-letter-routing-key": "finance.pendency-created"
+      }
+    },
+    {
+      "name": "reporting.finance-pendency-created.retry",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 10000,
+        "x-dead-letter-exchange": "domain.events",
+        "x-dead-letter-routing-key": "finance.pendency-created"
+      }
+    },
+    {
+      "name": "participation.user-deactivated.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "notification.finance-pendency-created.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "reporting.finance-pendency-created.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "domain.events",
+      "vhost": "/",
+      "destination": "participation.user-deactivated",
+      "destination_type": "queue",
+      "routing_key": "users.deactivated",
+      "arguments": {}
+    },
+    {
+      "source": "domain.events",
+      "vhost": "/",
+      "destination": "notification.finance-pendency-created",
+      "destination_type": "queue",
+      "routing_key": "finance.pendency-created",
+      "arguments": {}
+    },
+    {
+      "source": "domain.events",
+      "vhost": "/",
+      "destination": "reporting.finance-pendency-created",
+      "destination_type": "queue",
+      "routing_key": "finance.pendency-created",
+      "arguments": {}
+    },
+    {
+      "source": "domain.retry",
+      "vhost": "/",
+      "destination": "participation.user-deactivated.retry",
+      "destination_type": "queue",
+      "routing_key": "users.deactivated",
+      "arguments": {}
+    },
+    {
+      "source": "domain.retry",
+      "vhost": "/",
+      "destination": "notification.finance-pendency-created.retry",
+      "destination_type": "queue",
+      "routing_key": "finance.pendency-created",
+      "arguments": {}
+    },
+    {
+      "source": "domain.retry",
+      "vhost": "/",
+      "destination": "reporting.finance-pendency-created.retry",
+      "destination_type": "queue",
+      "routing_key": "finance.pendency-created",
+      "arguments": {}
+    },
+    {
+      "source": "domain.dlx",
+      "vhost": "/",
+      "destination": "participation.user-deactivated.dlq",
+      "destination_type": "queue",
+      "routing_key": "users.deactivated",
+      "arguments": {}
+    },
+    {
+      "source": "domain.dlx",
+      "vhost": "/",
+      "destination": "notification.finance-pendency-created.dlq",
+      "destination_type": "queue",
+      "routing_key": "finance.pendency-created",
+      "arguments": {}
+    },
+    {
+      "source": "domain.dlx",
+      "vhost": "/",
+      "destination": "reporting.finance-pendency-created.dlq",
+      "destination_type": "queue",
+      "routing_key": "finance.pendency-created",
+      "arguments": {}
+    }
+  ]
+}

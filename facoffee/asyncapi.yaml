@@ -1,0 +1,155 @@
+asyncapi: 3.1.0
+info:
+  title: FACOFFE Domain Events API
+  version: 1.0.0
+  description: |
+    Contrato AsyncAPI para os eventos de dominio priorizados.
+    Escopo atual: UserDeactivated e FinancialPendencyCreated.
+
+defaultContentType: application/json
+
+channels:
+  users.deactivated:
+    address: users.deactivated
+    messages:
+      UserDeactivated:
+        $ref: '#/components/messages/UserDeactivated'
+
+  finance.pendency-created:
+    address: finance.pendency-created
+    messages:
+      FinancialPendencyCreated:
+        $ref: '#/components/messages/FinancialPendencyCreated'
+
+operations:
+  usersServicePublishUserDeactivated:
+    action: send
+    channel:
+      $ref: '#/channels/users.deactivated'
+    messages:
+      - $ref: '#/channels/users.deactivated/messages/UserDeactivated'
+
+  participationServiceReceiveUserDeactivated:
+    action: receive
+    channel:
+      $ref: '#/channels/users.deactivated'
+    messages:
+      - $ref: '#/channels/users.deactivated/messages/UserDeactivated'
+
+  financeServicePublishFinancialPendencyCreated:
+    action: send
+    channel:
+      $ref: '#/channels/finance.pendency-created'
+    messages:
+      - $ref: '#/channels/finance.pendency-created/messages/FinancialPendencyCreated'
+
+  notificationServiceReceiveFinancialPendencyCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/finance.pendency-created'
+    messages:
+      - $ref: '#/channels/finance.pendency-created/messages/FinancialPendencyCreated'
+
+  reportingServiceReceiveFinancialPendencyCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/finance.pendency-created'
+    messages:
+      - $ref: '#/channels/finance.pendency-created/messages/FinancialPendencyCreated'
+
+components:
+  messages:
+    UserDeactivated:
+      name: UserDeactivated
+      title: Usuario desativado
+      summary: Evento publicado quando um usuario e desativado.
+      payload:
+        $ref: '#/components/schemas/UserDeactivatedEvent'
+
+    FinancialPendencyCreated:
+      name: FinancialPendencyCreated
+      title: Pendencia financeira criada
+      summary: Evento publicado quando uma nova pendencia e criada.
+      payload:
+        $ref: '#/components/schemas/FinancialPendencyCreatedEvent'
+
+  schemas:
+    EventEnvelopeBase:
+      type: object
+      required: [eventId, eventType, occurredAt, version, payload]
+      properties:
+        eventId:
+          type: string
+          example: evt_001
+        eventType:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+          example: '2026-05-19T13:00:00Z'
+        version:
+          type: string
+          example: '1.0'
+        payload:
+          type: object
+
+    PendencySource:
+      type: string
+      enum: [MONTHLY_PARTICIPATION]
+
+    PendencyStatus:
+      type: string
+      enum: [PENDING, WAITING_VALIDATION, PAID, REJECTED, CANCELLED]
+
+    UserDeactivatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeBase'
+        - type: object
+          properties:
+            eventType:
+              type: string
+              const: UserDeactivated
+            payload:
+              type: object
+              required: [userId, reason]
+              properties:
+                userId:
+                  type: string
+                  example: usr_123
+                reason:
+                  type: string
+                  example: Usuario nao participa mais da copa
+
+    FinancialPendencyCreatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventEnvelopeBase'
+        - type: object
+          properties:
+            eventType:
+              type: string
+              const: FinancialPendencyCreated
+            payload:
+              type: object
+              required: [pendencyId, source, sourceId, userId, cycle, amount, status]
+              properties:
+                pendencyId:
+                  type: string
+                  example: pend_001
+                source:
+                  $ref: '#/components/schemas/PendencySource'
+                sourceId:
+                  type: string
+                  example: mpart_001
+                userId:
+                  type: string
+                  example: usr_123
+                cycle:
+                  type: string
+                  pattern: '^\\d{4}-\\d{2}$'
+                  example: '2026-05'
+                amount:
+                  type: number
+                  format: double
+                  example: 40.00
+                status:
+                  $ref: '#/components/schemas/PendencyStatus'
