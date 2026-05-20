@@ -1,0 +1,198 @@
+server {
+  listen 8000;
+  server_name _;
+
+  client_max_body_size 10m;
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options SAMEORIGIN always;
+
+  location = /health {
+    add_header Content-Type text/plain;
+    return 200 'ok';
+  }
+
+  location = /_auth {
+    internal;
+    proxy_pass http://keycloak:8080/realms/facoffee/protocol/openid-connect/userinfo;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Authorization $http_authorization;
+  }
+
+  location /api/users/ {
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin "*" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PATCH,PUT,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
+
+    auth_request /_auth;
+
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${USERS_UPSTREAM};
+  }
+
+  location = /api/users {
+    error_page 418 = @users_noauth;
+
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin "*" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PATCH,PUT,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
+
+    if ($request_method = POST) {
+      return 418;
+    }
+
+    auth_request /_auth;
+
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${USERS_UPSTREAM};
+  }
+
+  location @users_noauth {
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${USERS_UPSTREAM};
+  }
+
+  location /api/participation/ {
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin "*" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PATCH,PUT,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
+
+    auth_request /_auth;
+
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${PARTICIPATION_UPSTREAM};
+  }
+
+  location = /api/participation {
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin "*" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PATCH,PUT,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
+
+    auth_request /_auth;
+
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${PARTICIPATION_UPSTREAM};
+  }
+
+  location /api/finance/ {
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin "*" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PATCH,PUT,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
+
+    auth_request /_auth;
+
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${FINANCE_UPSTREAM};
+  }
+
+  location = /api/finance {
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin "*" always;
+      add_header Access-Control-Allow-Methods "GET,POST,PATCH,PUT,DELETE,OPTIONS" always;
+      add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+      add_header Access-Control-Max-Age 86400 always;
+      return 204;
+    }
+
+    auth_request /_auth;
+
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Authorization,Content-Type,X-Request-Id" always;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header Authorization $http_authorization;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+    proxy_pass http://${FINANCE_UPSTREAM};
+  }
+
+  location /api/ {
+    add_header Content-Type application/json;
+    return 404 '{"error":"route_not_mapped"}';
+  }
+}

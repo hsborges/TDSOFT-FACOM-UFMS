@@ -17,7 +17,7 @@ info:
     gestores podem validar ou rejeitar os comprovantes.
 
 servers:
-  - url: http://localhost:8080/api
+  - url: http://localhost:8000/api
     description: Ambiente local de desenvolvimento
 
 tags:

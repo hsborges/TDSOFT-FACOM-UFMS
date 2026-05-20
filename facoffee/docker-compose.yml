@@ -1,4 +1,22 @@
 services:
+  api-gateway:
+    image: nginx:1.27-alpine
+    container_name: facoffee-api-gateway
+    hostname: api-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      USERS_UPSTREAM: host.docker.internal:3001
+      PARTICIPATION_UPSTREAM: host.docker.internal:3002
+      FINANCE_UPSTREAM: host.docker.internal:3003
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - keycloak
+
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: facoffee-rabbitmq

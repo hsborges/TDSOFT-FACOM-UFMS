@@ -15,6 +15,7 @@ Neste projeto, vocês irão implementar serviços da solução FACOFFEE seguindo
 O arquivo [`docker-compose.yml`](./docker-compose.yml) não sobe os serviços de domínio (Users, Participation, Finance etc.).
 Ele sobe apenas as dependências de plataforma para apoiar o desenvolvimento local:
 
+- API Gateway (Nginx)
 - RabbitMQ (mensageria)
 - Keycloak (autenticação e autorização)
 - Mailpit (captura de e-mails em ambiente de desenvolvimento)
@@ -70,6 +71,24 @@ docker compose down -v
 
 ## 5) Interfaces disponíveis
 
+### API Gateway (Nginx)
+
+- URL base: <a href="http://localhost:8000" target="_blank" rel="noopener noreferrer">http://localhost:8000</a>
+- Healthcheck: <a href="http://localhost:8000/health" target="_blank" rel="noopener noreferrer">http://localhost:8000/health</a>
+- Uso principal: entrada única HTTP para os serviços de domínio
+
+Rotas de proxy por domínio:
+
+- `/api/users/*` -> `host.docker.internal:3001`
+- `/api/participation/*` -> `host.docker.internal:3002`
+- `/api/finance/*` -> `host.docker.internal:3003`
+
+Regras de autenticação no gateway:
+
+- `POST /api/users` é público (sem token), conforme contrato.
+- Demais rotas `/api/*` exigem `Authorization: Bearer <token>` válido.
+- Validação do token é feita no Keycloak (`/userinfo`) pelo gateway.
+
 ### RabbitMQ
 
 - URL do painel: <a href="http://localhost:15672" target="_blank" rel="noopener noreferrer">http://localhost:15672</a>
@@ -117,15 +136,17 @@ Isso significa que as mensagens ficam visíveis na UI do Mailpit e não são ent
 ## 6) Fluxo recomendado de uso em aula/projeto
 
 1. Suba a infraestrutura com `docker compose up -d`.
-2. Acesse o Keycloak e confira o realm e os clients.
+2. Suba os serviços de domínio nas portas `3001..x` (ex.: Users `3001`, Participation `3002`, Finance `3003`).
+3. Acesse o Keycloak e confira o realm e os clients.
    - Para o projeto, sempre trabalhe no realm `facoffee`.
-3. Acesse o RabbitMQ e valide exchanges/filas conforme o desenho arquitetural.
-4. Implemente seu serviço de domínio (Users/Participation/Finance etc.).
-5. Aponte seu serviço para:
-   - Keycloak (JWT/OIDC)
-   - RabbitMQ (eventos)
-   - API definida em [`api-docs.yaml`](./api-docs.yaml)
-6. Use o Mailpit para inspecionar e-mails gerados em cenários de notificação/autenticação.
+4. Acesse o RabbitMQ e valide exchanges/filas conforme o desenho arquitetural.
+5. Implemente seu serviço de domínio (Users/Participation/Finance etc.).
+6. Aponte seu serviço para:
+    - Keycloak (JWT/OIDC)
+    - RabbitMQ (eventos)
+    - API definida em [`api-docs.yaml`](./api-docs.yaml)
+7. Chame a API sempre por `http://localhost:8000/api`.
+8. Use o Mailpit para inspecionar e-mails gerados em cenários de notificação/autenticação.
 
 ## 7) Como usar o contrato da API (`api-docs.yaml`)
 
@@ -189,7 +210,7 @@ Além disso, a role `MANAGER` possui permissões de gestão de usuários no real
 ## 9) Solução de problemas comuns
 
 - Porta em uso:
-  - Verifique se `5672`, `15672`, `8080`, `1025` ou `8025` já estão ocupadas.
+  - Verifique se `8000`, `5672`, `15672`, `8080`, `1025` ou `8025` já estão ocupadas.
 - Realm não apareceu no Keycloak:
   - Rode `docker compose down -v` e suba novamente.
 - E-mail não chega em caixa externa:
