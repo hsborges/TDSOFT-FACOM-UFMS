@@ -1,0 +1,79 @@
+{
+  "realm": "facoffee",
+  "enabled": true,
+  "registrationAllowed": false,
+  "accessTokenLifespan": 86400,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@facoffee.local",
+    "fromDisplayName": "Facoffee",
+    "auth": "false",
+    "ssl": "false",
+    "starttls": "false"
+  },
+  "users": [
+    {
+      "username": "facoffee",
+      "enabled": true,
+      "email": "facoffee@facom.ufms.br",
+      "emailVerified": true,
+      "firstName": "Facoffee",
+      "lastName": "Usuario",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "facoffee",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "facoffee-public",
+      "name": "facoffee-public",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost/*",
+        "http://auth.facoffee.hsborges.dev/*"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "web-origins"
+      ],
+      "webOrigins": [
+        "http://localhost",
+        "http://auth.facoffee.hsborges.dev"
+      ]
+    },
+    {
+      "clientId": "facoffee-private",
+      "name": "facoffee-private",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "secret": "facoffee-private-secret",
+      "redirectUris": [
+        "http://localhost/*",
+        "http://auth.facoffee.hsborges.dev/*"
+      ],
+      "webOrigins": [
+        "http://localhost",
+        "http://auth.facoffee.hsborges.dev"
+      ]
+    }
+  ]
+}

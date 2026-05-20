@@ -15,3 +15,31 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: facoffee-keycloak
+    hostname: keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: facoffee
+      KEYCLOAK_ADMIN_PASSWORD: facoffee
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8080:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/realm-facoffee.json:/opt/keycloak/data/import/realm-facoffee.json:ro
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: facoffee-mailpit
+    hostname: mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  keycloak_data:
