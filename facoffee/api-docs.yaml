@@ -17,8 +17,6 @@ info:
     gestores podem validar ou rejeitar os comprovantes.
 
 servers:
-  - url: https://api.facoffe.hsborges.dev/api
-    description: API Gateway público
   - url: http://localhost:8080/api
     description: Ambiente local de desenvolvimento
 
@@ -31,8 +29,6 @@ tags:
     description: Gerenciamento de cotas e adesões de participação.
   - name: Finance
     description: Gerenciamento de pendências financeiras, despesas, comprovantes e validações.
-  - name: Events
-    description: Eventos de domínio documentados como extensão OpenAPI.
 
 security:
   - bearerAuth: []
@@ -42,7 +38,7 @@ paths:
     post:
       tags: [Users]
       summary: Criar usuário
-      description: Cria um usuário de domínio. A criação da credencial pode ser delegada ao serviço de Auth & IAM.
+      description: Cria um usuário no domínio e no identity provider (Keycloak). Por padrão, envia email de validação para ativação da conta. Em caso de conflito de email, retorna 409.
       operationId: createUser
       security: []
       requestBody:
@@ -71,7 +67,7 @@ paths:
     get:
       tags: [Users]
       summary: Listar usuários
-      description: Operação restrita a gestores.
+      description: Lista os usuários cadastrados com filtros opcionais (status, role) e paginação. Operação permitida somente para gestores.
       operationId: listUsers
       x-authorization:
         scope: ROLE
@@ -124,7 +120,7 @@ paths:
     patch:
       tags: [Users]
       summary: Atualizar dados básicos do usuário
-      description: Gestores podem alterar qualquer usuário; participantes podem alterar apenas os próprios dados.
+      description: "Atualiza apenas dados básicos (ex.: nome). Não permite alterar papéis (roles). Gestores podem alterar qualquer usuário; participantes podem alterar apenas os próprios dados."
       operationId: updateUser
       x-authorization:
         scope: ACCESS_RULE
@@ -148,12 +144,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /users/{userId}/deactivate:
-    post:
+    delete:
       tags: [Users]
       summary: Desativar usuário
-      description: Desativa a conta de um usuário e publica o evento UserDeactivated. Gestores podem desativar qualquer usuário; participantes apenas a própria conta.
+      description: Desativa logicamente a conta de um usuário (status INACTIVE), sem remoção física, e publica o evento UserDeactivated. Gestores podem desativar qualquer usuário; participantes apenas a própria conta.
       operationId: deactivateUser
       x-authorization:
         scope: ACCESS_RULE
@@ -186,7 +180,7 @@ paths:
     put:
       tags: [Users]
       summary: Substituir papéis do usuário
-      description: Operação restrita a gestores ou administradores.
+      description: Substitui integralmente os papéis (roles) atuais do usuário pelos informados na requisição. Operação restrita a gestores ou administradores.
       operationId: replaceUserRoles
       parameters:
         - $ref: '#/components/parameters/UserId'
@@ -252,6 +246,7 @@ paths:
     get:
       tags: [Participation]
       summary: Listar cotas de participação
+      description: Lista cotas com filtros opcionais (active, condition, items) e paginação. Retorna cotas ativas e inativas conforme filtro informado.
       operationId: listParticipationQuotas
       parameters:
         - name: active
@@ -283,6 +278,7 @@ paths:
     get:
       tags: [Participation]
       summary: Obter cota de participação por identificador
+      description: Retorna os dados completos de uma cota de participação pelo identificador. Retorna 404 quando a cota não existir.
       operationId: getParticipationQuotaById
       parameters:
         - $ref: '#/components/parameters/QuotaId'
@@ -395,6 +391,7 @@ paths:
     get:
       tags: [Participation]
       summary: Listar participações
+      description: Lista participações com filtros opcionais (userId, quotaId, status, cycle) e paginação. Os filtros são combinados entre si.
       operationId: listParticipations
       parameters:
         - name: userId
@@ -433,6 +430,7 @@ paths:
     get:
       tags: [Participation]
       summary: Obter participação por identificador
+      description: Retorna os dados de uma participação específica, incluindo snapshot da cota no momento da adesão. Retorna 404 quando não existir.
       operationId: getParticipationById
       parameters:
         - $ref: '#/components/parameters/ParticipationId'
@@ -451,6 +449,7 @@ paths:
       description: |
         Realiza remoção lógica (cancelamento) de uma participação ativa.
         Pode ser acionado pelo próprio participante, por um gestor ou como reação ao evento UserDeactivated.
+        Quando effectiveCycle é informado, o cancelamento passa a valer a partir do ciclo indicado.
       operationId: cancelParticipation
       x-authorization:
         scope: ACCESS_RULE
@@ -481,6 +480,7 @@ paths:
     get:
       tags: [Finance]
       summary: Listar pendências financeiras
+      description: Lista pendências financeiras com filtros opcionais (userId, cycle, status) e paginação. Os filtros são combinados entre si.
       operationId: listPendencies
       parameters:
         - name: userId
@@ -514,6 +514,7 @@ paths:
     get:
       tags: [Finance]
       summary: Obter pendência financeira por identificador
+      description: Retorna uma pendência financeira específica com valores, ciclo e status atual. Retorna 404 quando não existir.
       operationId: getPendencyById
       parameters:
         - $ref: '#/components/parameters/PendencyId'
@@ -531,7 +532,7 @@ paths:
     post:
       tags: [Finance]
       summary: Enviar comprovante de pagamento
-      description: Permite que o usuário comprove o pagamento de uma pendência financeira.
+      description: Registra um comprovante de pagamento para uma pendência. A operação é permitida para participante e muda a pendência para estado de validação quando aplicável.
       operationId: submitPaymentProof
       x-authorization:
         scope: ROLE
@@ -577,6 +578,7 @@ paths:
     get:
       tags: [Finance]
       summary: Listar comprovantes de uma pendência
+      description: Lista comprovantes associados a uma pendência, com filtro opcional por status e paginação. Retorna 404 quando a pendência não existir.
       operationId: listPendencyPaymentProofs
       parameters:
         - $ref: '#/components/parameters/PendencyId'
@@ -604,6 +606,7 @@ paths:
       description: |
         Operação realizada por gestores para validar ou rejeitar um comprovante.
         Ao validar, a pendência é marcada como paga; ao rejeitar, retorna para estado de cobrança.
+        Apenas comprovantes em WAITING_VALIDATION podem ser decididos.
       operationId: decidePaymentProof
       x-authorization:
         scope: ROLE
@@ -656,6 +659,7 @@ paths:
         Remove um comprovante de pagamento.
         A operação deve falhar caso o comprovante já tenha sido analisado
         (status diferente de WAITING_VALIDATION).
+        Quando removido com sucesso, a pendência pode retornar para estado de cobrança conforme regra de negócio.
       operationId: deletePaymentProof
       x-authorization:
         scope: ACCESS_RULE
@@ -687,7 +691,7 @@ paths:
     post:
       tags: [Finance]
       summary: Cadastrar despesa
-      description: Permite que gestores cadastrem despesas da copa.
+      description: Permite que gestores cadastrem despesas da copa. O valor informado é persistido como enviado e passa a compor extratos e balanço.
       operationId: createExpense
       x-authorization:
         scope: ROLE
@@ -717,6 +721,7 @@ paths:
     get:
       tags: [Finance]
       summary: Listar despesas
+      description: Lista despesas com filtros opcionais (cycle, category) e paginação. Os filtros são combinados entre si.
       operationId: listExpenses
       parameters:
         - name: cycle
@@ -745,6 +750,7 @@ paths:
     get:
       tags: [Finance]
       summary: Obter despesa por identificador
+      description: Retorna os dados completos de uma despesa pelo identificador. Retorna 404 quando não existir.
       operationId: getExpenseById
       parameters:
         - $ref: '#/components/parameters/ExpenseId'
@@ -760,7 +766,7 @@ paths:
     delete:
       tags: [Finance]
       summary: Remover despesa
-      description: Remove uma despesa cadastrada.
+      description: Remove uma despesa cadastrada. Após remoção, a despesa deixa de compor extratos e balanço consolidados.
       operationId: deleteExpense
       x-authorization:
         scope: ROLE
@@ -1630,180 +1636,3 @@ components:
           type: string
           format: date-time
           example: '2026-05-19T18:00:00Z'
-
-x-domain-events:
-  publishedByUsersService:
-    - eventType: UserDeactivated
-      version: '1.0'
-      exchange: facoffe.users.events
-      routingKey: users.deactivated
-      consumers:
-        - Participation Service
-      payloadExample:
-        eventId: evt_001
-        eventType: UserDeactivated
-        occurredAt: '2026-05-19T13:00:00Z'
-        version: '1.0'
-        payload:
-          userId: usr_123
-          reason: Usuário não participa mais da copa
-
-  publishedByParticipationService:
-    - eventType: ParticipationQuotaCreated
-      version: '1.0'
-      exchange: facoffe.participation.events
-      routingKey: quota.created
-      consumers:
-        - Reporting Service
-      payloadExample:
-        eventId: evt_010
-        eventType: ParticipationQuotaCreated
-        occurredAt: '2026-05-01T08:00:00Z'
-        version: '1.0'
-        payload:
-          quotaId: quota_001
-          name: Cota diária completa
-          condition: DAILY
-          items: ALL
-          amount: 40.00
-          createdBy: usr_manager_001
-    - eventType: ParticipationJoined
-      version: '1.0'
-      exchange: facoffe.participation.events
-      routingKey: participation.joined
-      consumers:
-        - Reporting Service
-      payloadExample:
-        eventId: evt_011
-        eventType: ParticipationJoined
-        occurredAt: '2026-05-02T10:00:00Z'
-        version: '1.0'
-        payload:
-          participationId: part_001
-          userId: usr_123
-          quotaId: quota_001
-          startCycle: '2026-05'
-          quotaSnapshot:
-            quotaId: quota_001
-            name: Cota diária completa
-            condition: DAILY
-            items: ALL
-            amount: 40.00
-    - eventType: MonthlyParticipationGenerated
-      version: '1.0'
-      exchange: facoffe.participation.events
-      routingKey: monthly-participation.generated
-      consumers:
-        - Finance Service
-      payloadExample:
-        eventId: evt_012
-        eventType: MonthlyParticipationGenerated
-        occurredAt: '2026-05-01T08:00:00Z'
-        version: '1.0'
-        payload:
-          monthlyParticipationId: mpart_001
-          participationId: part_001
-          userId: usr_123
-          quotaId: quota_001
-          cycle: '2026-05'
-          amount: 40.00
-          description: Cota diária completa - Maio/2026
-          quotaSnapshot:
-            quotaId: quota_001
-            name: Cota diária completa
-            condition: DAILY
-            items: ALL
-            amount: 40.00
-    - eventType: ParticipationCancelled
-      version: '1.0'
-      exchange: facoffe.participation.events
-      routingKey: participation.cancelled
-      consumers:
-        - Finance Service
-      payloadExample:
-        eventId: evt_013
-        eventType: ParticipationCancelled
-        occurredAt: '2026-05-19T13:30:00Z'
-        version: '1.0'
-        payload:
-          participationId: part_001
-          userId: usr_123
-          quotaId: quota_001
-          effectiveCycle: '2026-06'
-          reason: Participante deixou de usar a copa
-
-  publishedByFinanceService:
-    - eventType: FinancialPendencyCreated
-      version: '1.0'
-      exchange: facoffe.finance.events
-      routingKey: financial-pendency.created
-      consumers:
-        - Notification Service
-        - Reporting Service
-      payloadExample:
-        eventId: evt_020
-        eventType: FinancialPendencyCreated
-        occurredAt: '2026-05-01T08:10:00Z'
-        version: '1.0'
-        payload:
-          pendencyId: pend_001
-          source: MONTHLY_PARTICIPATION
-          sourceId: mpart_001
-          userId: usr_123
-          cycle: '2026-05'
-          amount: 40.00
-          status: PENDING
-    - eventType: PaymentProofSubmitted
-      version: '1.0'
-      exchange: facoffe.finance.events
-      routingKey: payment-proof.submitted
-      consumers:
-        - Notification Service
-        - Reporting Service
-      payloadExample:
-        eventId: evt_021
-        eventType: PaymentProofSubmitted
-        occurredAt: '2026-05-10T12:00:00Z'
-        version: '1.0'
-        payload:
-          proofId: proof_001
-          pendencyId: pend_001
-          userId: usr_123
-          amount: 40.00
-          status: WAITING_VALIDATION
-    - eventType: PaymentProofValidated
-      version: '1.0'
-      exchange: facoffe.finance.events
-      routingKey: payment-proof.validated
-      consumers:
-        - Notification Service
-        - Reporting Service
-      payloadExample:
-        eventId: evt_022
-        eventType: PaymentProofValidated
-        occurredAt: '2026-05-11T09:00:00Z'
-        version: '1.0'
-        payload:
-          proofId: proof_001
-          pendencyId: pend_001
-          userId: usr_123
-          amount: 40.00
-          pendencyStatus: PAID
-          validatedBy: usr_manager_001
-    - eventType: ExpenseCreated
-      version: '1.0'
-      exchange: facoffe.finance.events
-      routingKey: expense.created
-      consumers:
-        - Reporting Service
-      payloadExample:
-        eventId: evt_023
-        eventType: ExpenseCreated
-        occurredAt: '2026-05-08T15:00:00Z'
-        version: '1.0'
-        payload:
-          expenseId: exp_001
-          category: COFFEE
-          amount: 85.90
-          expenseDate: '2026-05-08'
-          registeredBy: usr_manager_001
