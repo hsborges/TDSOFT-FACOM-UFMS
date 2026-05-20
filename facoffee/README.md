@@ -87,6 +87,7 @@ Observação: as configurações iniciais são carregadas por:
 - Usuário admin: `facoffee`
 - Senha admin: `facoffee`
 - Realm pré-configurado: `facoffee`
+- Usuário inicial do realm: `facoffee@facom.ufms.br` (role `MANAGER`)
 
 Separação importante de realms (para evitar confusão):
 
@@ -99,6 +100,7 @@ Clients criados automaticamente no realm `facoffee`:
 - `facoffee-public` (cliente público)
 - `facoffee-private` (cliente confidencial)
   - Secret fixo: `facoffee-private-secret`
+- `domain-roles` (client scope para expor roles de domínio na claim `roles`)
 
 Arquivo de import do realm:
 
@@ -171,7 +173,7 @@ curl -X POST "http://localhost:8080/realms/facoffee/protocol/openid-connect/toke
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=password" \
   -d "client_id=facoffee-public" \
-  -d "username=facoffee" \
+  -d "username=facoffee@facom.ufms.br" \
   -d "password=facoffee"
 ```
 
@@ -180,6 +182,9 @@ Com o token em mãos, use no cabeçalho:
 ```text
 Authorization: Bearer <access_token>
 ```
+
+As roles de domínio são emitidas diretamente na claim `roles` do token (ex.: `MANAGER`, `PARTICIPANT`).
+Além disso, a role `MANAGER` possui permissões de gestão de usuários no realm (`realm-management`: `query-users`, `view-users`, `manage-users`).
 
 ## 9) Solução de problemas comuns
 
@@ -195,5 +200,8 @@ Authorization: Bearer <access_token>
 - Arquitetura: [`arquitetura-facoffee.svg`](./arquitetura-facoffee.svg)
 - Contrato API: [`api-docs.yaml`](./api-docs.yaml)
 - Contrato assíncrono: [`async-docs.yaml`](./async-docs.yaml)
+- Guia da equipe Users: [`GUIA_EQUIPE_USERS.md`](./GUIA_EQUIPE_USERS.md)
+- Guia da equipe Participation: [`GUIA_EQUIPE_PARTICIPATION.md`](./GUIA_EQUIPE_PARTICIPATION.md)
+- Guia da equipe Finance: [`GUIA_EQUIPE_FINANCE.md`](./GUIA_EQUIPE_FINANCE.md)
 - Compose local: [`docker-compose.yml`](./docker-compose.yml)
 - Realm Keycloak: [`keycloak/realm-facoffee.json`](./keycloak/realm-facoffee.json)

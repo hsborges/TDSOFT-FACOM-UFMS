@@ -1,6 +1,9 @@
 {
   "realm": "facoffee",
   "enabled": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
   "registrationAllowed": false,
   "accessTokenLifespan": 86400,
   "smtpServer": {
@@ -14,12 +17,15 @@
   },
   "users": [
     {
-      "username": "facoffee",
+      "username": "facoffee@facom.ufms.br",
       "enabled": true,
       "email": "facoffee@facom.ufms.br",
       "emailVerified": true,
       "firstName": "Facoffee",
       "lastName": "Usuario",
+      "realmRoles": [
+        "MANAGER"
+      ],
       "credentials": [
         {
           "type": "password",
@@ -48,11 +54,39 @@
         "openid",
         "profile",
         "email",
+        "roles",
+        "domain-roles",
         "web-origins"
       ],
       "webOrigins": [
         "http://localhost",
         "http://auth.facoffee.hsborges.dev"
+      ]
+    },
+    {
+      "clientId": "domain-roles",
+      "name": "domain-roles",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "display.on.consent.screen": "false",
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm-roles-to-roles-claim",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
       ]
     },
     {
@@ -70,10 +104,40 @@
         "http://localhost/*",
         "http://auth.facoffee.hsborges.dev/*"
       ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "domain-roles",
+        "web-origins"
+      ],
       "webOrigins": [
         "http://localhost",
         "http://auth.facoffee.hsborges.dev"
       ]
     }
-  ]
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "MANAGER",
+        "description": "Papel de gestor do dominio",
+        "composite": true,
+        "composites": {
+          "client": {
+            "realm-management": [
+              "query-users",
+              "view-users",
+              "manage-users"
+            ]
+          }
+        }
+      },
+      {
+        "name": "PARTICIPANT",
+        "description": "Papel de participante do dominio"
+      }
+    ]
+  }
 }
